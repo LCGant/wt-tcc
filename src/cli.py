@@ -902,12 +902,29 @@ def sensitivity(root, test_days, seed_value, cold_fraction, cold_keep_k, param):
               help="Fraction of users to truncate to simulate cold start (0.0 = no truncation)")
 @click.option("--cold-keep-k", default=5, type=int,
               help="Number of earliest interactions to keep for cold-truncated users")
-def evaluate_movielens(root, variant, test_days, seed_value, cold_fraction, cold_keep_k):
+@click.option("--backend", type=click.Choice(["cpu", "torch"]), default="cpu",
+              help="Evaluation backend. 'cpu' = legacy per-user loop; 'torch' = vectorised "
+                   "GPU/CPU pipeline (set AI_USE_GPU=1 for CUDA).")
+def evaluate_movielens(root, variant, test_days, seed_value, cold_fraction, cold_keep_k, backend):
     """Evaluate hybrid recommender against MovieLens-100K or 1M dataset.
 
     Uses the most recent `--test-days` of timestamps as test set.
     No DB access required — loads everything from filesystem.
     """
+    if backend == "torch":
+        # Vectorised path — tensors on the configured device, no per-user
+        # Python loop. Produces the same metric log lines as the CPU path.
+        from src_torch.runner import evaluate_movielens_torch
+        evaluate_movielens_torch(
+            root=root,
+            variant=variant,
+            test_days=test_days,
+            seed_value=seed_value,
+            cold_fraction=cold_fraction,
+            cold_keep_k=cold_keep_k,
+        )
+        return
+
     from src.config import log
     from src.etl.movielens import load_movielens_100k, load_movielens_1m, load_lastfm_2k
     from src.models.content_based import ContentBasedModel

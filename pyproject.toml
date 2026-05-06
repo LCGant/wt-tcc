@@ -17,9 +17,22 @@ dependencies = [
 ml = [
     "implicit>=0.7,<1",
 ]
+torch = [
+    # Vectorised backend (--backend=torch). CPU wheels by default.
+    # For CUDA, install the matching wheel from https://pytorch.org/get-started.
+    "torch>=2.2,<3",
+]
 dev = [
     "pytest>=8.0,<9",
 ]
 
 [project.scripts]
 role-ai = "src.cli:cli"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# Container runs as the unprivileged ``app`` user, so ``/app`` is read-only;
+# point pytest's cache somewhere writable. Avoids spurious permission warnings
+# without disabling caching outright.
+cache_dir = "/tmp/pytest_cache"

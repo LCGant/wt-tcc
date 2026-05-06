@@ -163,7 +163,40 @@ Outputs:
 | `experiments/results/tables.md`   | Aggregated Markdown tables (mean ± SD) |
 | `experiments/results/summary.json` | Mean / SD / 95% CI per (volume, metric) |
 
-### 4. Tear down
+### 4. Optional: vectorised backend (experimental)
+
+The default `evaluate-movielens` command runs the per-user scoring loop
+in pure Python. The repository also ships a vectorised PyTorch backend
+that replaces that loop with a single `(n_users, n_items)` matmul and
+adds opt-in CUDA acceleration:
+
+```bash
+# CPU torch path (still vectorised; ~5-10× faster than the default loop)
+docker compose --profile ai run --rm ai \
+    python -m src.cli evaluate-movielens \
+    --root /data/ml-100k --backend torch --seed-value 42
+
+# GPU torch path (CUDA-capable host required)
+AI_USE_GPU=1 bash experiments/run_movielens_torch.sh
+```
+
+The torch backend mirrors the reference hybrid (Thompson Sampling
+bandit + cold-start tier priors + exploratory noise). The CPU
+pipeline remains the reference implementation for the reproducibility
+tables above; the torch backend is provided as a faster alternative
+for batched evaluation.
+
+The vectorised package ships with a pytest suite under
+`tests/src_torch/`. Run it inside the container:
+
+```bash
+docker compose --profile ai run --rm --entrypoint pytest ai tests
+```
+
+(Tests are skipped automatically when the image is built with
+`--build-arg INSTALL_TORCH=0`.)
+
+### 5. Tear down
 
 ```bash
 docker compose down -v          # also removes the postgres volume
