@@ -31,12 +31,21 @@ except ImportError:
 
 def _gpu_requested() -> bool:
     """Honour AI_USE_GPU=1; only relevant when the implicit GPU build is
-    actually present (the regular CPU build raises if use_gpu=True)."""
+    actually present (the regular CPU build raises if use_gpu=True).
+
+    The PyPI wheel of ``implicit`` ships ``implicit.gpu`` as a Python
+    shim that requires a CUDA extension at runtime — the import
+    succeeds even on a CPU-only build, so the import alone is not a
+    reliable probe. ``implicit.gpu.HAS_CUDA`` is the actual flag.
+    """
     flag = os.environ.get("AI_USE_GPU", "").strip().lower()
     if flag not in {"1", "true", "yes"}:
         return False
     try:
-        import implicit.gpu  # noqa: F401
+        import implicit.gpu
+        if not getattr(implicit.gpu, "HAS_CUDA", False):
+            log.info("AI_USE_GPU=1 but implicit was not built with CUDA — running ALS on CPU")
+            return False
         return True
     except Exception:
         log.warning("AI_USE_GPU=1 but implicit.gpu unavailable — falling back to CPU ALS")
