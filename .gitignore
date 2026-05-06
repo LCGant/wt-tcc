@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Datasets — too large to track. Download via the README instructions.
+datasets/
+
+# Experiment outputs
+experiments/results/
+
+# Local env
+.env
+.env.local
+
+# Docker
+.docker/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Plots
+*.png
+!docs/**/*.png

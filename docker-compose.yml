@@ -1,0 +1,49 @@
+# Self-contained stack for the recommender experiments.
+#
+# Only what's needed to reproduce the TCC results:
+#   - postgres   schema for synthetic-data experiments (volume x seed grid)
+#   - ai         the recommendation engine (CLI commands)
+#
+# Public datasets (MovieLens-100K, Last.fm-2k) don't need the database — they
+# run directly via `docker compose run --rm ai` with the dataset mounted.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-social}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql:ro
+      - ./db/migrations/0002_force_rls.sql:/docker-entrypoint-initdb.d/0002_force_rls.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [internal]
+
+  ai:
+    profiles: ["ai"]
+    build: .
+    image: wt-tcc-ai:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AI_DB_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-social}?sslmode=disable
+      SOCIAL_DB_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-social}?sslmode=disable
+      TENANT_ID: ${TENANT_ID:-default}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ai_models:/app/data/models
+    networks: [internal]
+
+volumes:
+  pg_data:
+  ai_models:
+
+networks:
+  internal:
