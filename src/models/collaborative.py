@@ -2,11 +2,17 @@
 
 Uses the `implicit` library when available, falls back to a simple
 co-occurrence matrix when it's not installed (e.g., local dev on Windows).
+
+GPU acceleration: set the env var ``AI_USE_GPU=1`` and run on a host with
+CUDA + a GPU-capable build of ``implicit`` (`pip install implicit[gpu]`)
+to offload the ALS solver. Falls back to CPU automatically when CUDA is
+unavailable so the same image works on both hosts.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from collections import defaultdict
 
 import numpy as np
@@ -21,6 +27,20 @@ try:
     _HAS_IMPLICIT = True
 except ImportError:
     _HAS_IMPLICIT = False
+
+
+def _gpu_requested() -> bool:
+    """Honour AI_USE_GPU=1; only relevant when the implicit GPU build is
+    actually present (the regular CPU build raises if use_gpu=True)."""
+    flag = os.environ.get("AI_USE_GPU", "").strip().lower()
+    if flag not in {"1", "true", "yes"}:
+        return False
+    try:
+        import implicit.gpu  # noqa: F401
+        return True
+    except Exception:
+        log.warning("AI_USE_GPU=1 but implicit.gpu unavailable — falling back to CPU ALS")
+        return False
 
 
 class CollaborativeModel:
@@ -69,12 +89,16 @@ class CollaborativeModel:
         )
 
         if _HAS_IMPLICIT:
-            log.info("Training ALS model (factors=%d, iterations=%d)", self._factors, self._iterations)
+            use_gpu = _gpu_requested()
+            log.info(
+                "Training ALS model (factors=%d, iterations=%d, gpu=%s)",
+                self._factors, self._iterations, use_gpu,
+            )
             self._model = _ALS(
                 factors=self._factors,
                 regularization=self._reg,
                 iterations=self._iterations,
-                use_gpu=False,
+                use_gpu=use_gpu,
             )
             self._model.fit(self._interaction_matrix)
         else:

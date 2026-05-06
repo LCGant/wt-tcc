@@ -1,10 +1,17 @@
-# Hybrid Recommender — TCC reproducibility package
+# Modeling Dynamic Preferences — Hybrid Recommender
 
 > [Versão em português](README.pt-BR.md)
 
-This repository contains the recommendation engine and the experiment harness
-used in the undergraduate thesis. It is the **academic deliverable** —
-self-contained, reproducible, and decoupled from the surrounding application.
+Reproducibility package for the undergraduate thesis **"Modelando Preferências
+Dinâmicas: Aplicações de Aprendizado por Reforço em Sistemas de Recomendação"**
+(Universidade Cidade de São Paulo · Computer Science, 2026).
+
+**Authors:** Lucas Guilherme Antonio · Thalles Portal Lopes de Miranda ·
+Leonardo Marques Pereira Bouzan · Danielle Longati · Matheus Silva Braga ·
+Felipe Peçanha Pereira · Daniely Silva de Miranda
+
+The repository contains the recommendation engine and the experiment harness —
+self-contained, reproducible, and decoupled from any surrounding application.
 
 ## What's inside
 
@@ -55,28 +62,85 @@ onboarding_only, warm_few, warm_full) with asymmetric learning rates.
 
 ### 2. Public-dataset experiments (no database needed)
 
-These run entirely in-memory. Download the datasets first:
+Two public benchmarks across distinct domains, both run entirely in-memory
+through the same Docker image:
+
+| Dataset | Domain | Size | Source |
+|---------|--------|------|--------|
+| MovieLens-100K | movies | 100K ratings | grouplens.org |
+| Last.fm-2k     | music  | ~187K plays  | grouplens.org (HetRec 2011) |
+
+Download whichever you want to run:
 
 ```bash
 mkdir -p datasets && cd datasets
-curl -O https://files.grouplens.org/datasets/movielens/ml-100k.zip && unzip ml-100k.zip
+curl -O https://files.grouplens.org/datasets/movielens/ml-100k.zip
+unzip ml-100k.zip
 curl -O https://files.grouplens.org/datasets/hetrec2011/hetrec2011-lastfm-2k.zip
 unzip hetrec2011-lastfm-2k.zip -d lastfm-2k
 cd ..
 ```
 
-Build the image and run the evaluators:
+Build the image and run the evaluators (independent — run either or both):
 
 ```bash
 docker compose --profile ai build
-bash experiments/run_movielens.sh        # ~5 minutes
-bash experiments/run_lastfm.sh           # ~5 minutes
+bash experiments/run_movielens.sh        # ~7 minutes (5 seeds)
+bash experiments/run_lastfm.sh           # ~7 minutes (5 seeds)
 python experiments/aggregate_movielens.py
 python experiments/aggregate_lastfm.py
 ```
 
-Aggregated tables land in `experiments/results/` (`movielens_table.md`,
-`lastfm_table.md`).
+Aggregated tables land in `experiments/results/` as
+`{movielens,lastfm}_table.md`.
+
+### Public-dataset results (5 seeds each)
+
+#### MovieLens-100K — System vs 7 baselines
+
+| Model | P@10 | NDCG@10 | Coverage |
+|---|---|---|---|
+| Popularity | 25.11% ± 0.00% | 27.28% ± 0.00% | 5.29% |
+| **Hybrid system** | **18.47% ± 0.75%** | **20.17% ± 0.64%** | **54.03% ± 0.51%** |
+| EASE-R | 10.75% ± 0.00% | 13.62% ± 0.00% | 15.58% |
+| iALS (tuned) | 8.48% ± 1.32% | 10.70% ± 2.13% | 27.06% |
+| BPR (tuned) | 4.81% ± 0.22% | 6.28% ± 0.88% | 42.35% |
+| Item-kNN | 3.36% ± 0.00% | 3.64% ± 0.00% | 8.92% |
+| Random | 2.63% ± 0.20% | 2.51% ± 0.25% | — |
+| LinUCB (α=1) | 0.00% | 0.00% | 6.90% |
+
+Wilcoxon signed-rank (P@10) is significant (p < 0.05) against every baseline.
+
+#### Last.fm-2k — Cold-start, top-1500 artists, 90-day test split
+
+| Model | P@10 | NDCG@10 | Coverage |
+|---|---|---|---|
+| EASE-R | 3.56% ± 0.27% | 9.01% ± 0.39% | 45.28% |
+| BPR (tuned) | 3.16% ± 0.50% | 8.58% ± 2.07% | 68.72% |
+| Popularity | 2.89% ± 0.07% | 8.43% ± 0.19% | 3.67% |
+| iALS (tuned) | 2.78% ± 0.46% | 6.76% ± 1.26% | 63.11% |
+| Item-kNN | 2.62% ± 0.25% | 5.25% ± 0.47% | 57.97% |
+| **Hybrid system** | **2.37% ± 0.25%** | **5.81% ± 0.34%** | **64.05% ± 1.24%** |
+| LinUCB (α=1) | 0.31% ± 0.08% | 0.82% ± 0.38% | 41.35% |
+| Random | 0.31% ± 0.04% | — | — |
+
+In this cold-start regime the system is *statistically equivalent* to the
+strong baselines (Wilcoxon p > 0.05 against item-kNN/iALS/BPR/EASE-R) while
+keeping much higher catalog coverage than Popularity.
+
+#### How to read the numbers
+
+The headline takeaway across both benchmarks is the **coverage / precision
+trade-off**: even when Popularity wins on P@10 (MovieLens), the proposed
+hybrid recommender keeps its 54% catalog coverage versus Popularity's ~5%,
+avoiding popularity-bubble collapse while remaining competitive on ranking
+quality.
+
+Known limitation in this batch evaluation: **LinUCB with α=1.0** behaves
+pathologically because the exploration bonus dominates the mean reward,
+biasing the bandit toward arms with no training updates. The default has
+been lowered to α=0.1 in the code; the table above reflects the original
+α=1.0 run and is reported as-is for transparency.
 
 ### 3. Synthetic-pipeline experiments (volume × seed grid)
 
@@ -121,10 +185,16 @@ docker compose down -v          # also removes the postgres volume
 
 ```
 @thesis{wt-tcc,
-  title  = {Hybrid Recommender System with Thompson Sampling and Onboarding-Behavior Correction},
-  author = {Antonio, Lucas Guilherme},
-  year   = {2026},
-  type   = {Undergraduate Thesis},
+  title  = {Modelando Preferências Dinâmicas: Aplicações de Aprendizado por
+            Reforço em Sistemas de Recomendação},
+  author = {Antonio, Lucas Guilherme and Lopes de Miranda, Thalles Portal and
+            Pereira Bouzan, Leonardo Marques and Longati, Danielle and
+            Braga, Matheus Silva and Pereira, Felipe Pe{\c c}anha and
+            Silva de Miranda, Daniely},
+  year         = {2026},
+  type         = {Undergraduate Thesis},
+  institution  = {Universidade Cidade de S{\~a}o Paulo (UNICID)},
+  note         = {Computer Science},
 }
 ```
 

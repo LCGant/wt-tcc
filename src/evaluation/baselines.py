@@ -7,12 +7,26 @@ Returns metrics: precision@K, ndcg@K, recall@K, coverage.
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pandas as pd
 
 from src.evaluation.offline_metrics import (
     precision_at_k, recall_at_k, ndcg_at_k, coverage,
 )
+
+
+def _als_use_gpu() -> bool:
+    """Mirror of CollaborativeModel._gpu_requested — honour AI_USE_GPU=1
+    only if implicit.gpu is actually importable."""
+    if os.environ.get("AI_USE_GPU", "").strip().lower() not in {"1", "true", "yes"}:
+        return False
+    try:
+        import implicit.gpu  # noqa: F401
+        return True
+    except Exception:
+        return False
 
 
 def _temporal_train_val_split(train_df: pd.DataFrame, val_frac: float = 0.1) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -297,7 +311,7 @@ def ials_baseline(
                 try:
                     m = AlternatingLeastSquares(
                         factors=params["factors"], iterations=params["iterations"],
-                        regularization=params["regularization"], random_state=rng_seed, use_gpu=False,
+                        regularization=params["regularization"], random_state=rng_seed, use_gpu=_als_use_gpu(),
                     )
                     m.fit(M_sub, show_progress=False)
                     score = _ndcg_on_holdout(m, M_sub, val, u_sub, i_sub, items_sub, k=10)
@@ -315,7 +329,7 @@ def ials_baseline(
         iterations=chosen["iterations"],
         regularization=chosen["regularization"],
         random_state=rng_seed,
-        use_gpu=False,
+        use_gpu=_als_use_gpu(),
     )
     model.fit(M, show_progress=False)
 
@@ -406,7 +420,7 @@ def bpr_baseline(
                         factors=params["factors"], iterations=params["iterations"],
                         learning_rate=params["learning_rate"],
                         regularization=params["regularization"],
-                        random_state=rng_seed, use_gpu=False,
+                        random_state=rng_seed, use_gpu=_als_use_gpu(),
                     )
                     m.fit(M_sub, show_progress=False)
                     score = _ndcg_on_holdout(m, M_sub, val, u_sub, i_sub, items_sub, k=10)
@@ -426,7 +440,7 @@ def bpr_baseline(
         learning_rate=chosen["learning_rate"],
         regularization=chosen["regularization"],
         random_state=rng_seed,
-        use_gpu=False,
+        use_gpu=_als_use_gpu(),
     )
     model.fit(M, show_progress=False)
 
@@ -543,7 +557,7 @@ def linucb_baseline(
     test_df: pd.DataFrame,
     n_items: int,
     k_values: list[int] | None = None,
-    alpha: float = 1.0,
+    alpha: float = 0.1,
     n_components: int = 32,
     rng_seed: int = 42,
 ) -> dict[str, float]:
@@ -556,6 +570,13 @@ def linucb_baseline(
     For arm a, payoff θ_a^T x_user is estimated by ridge regression on observed
     rewards. Selection adds a confidence bonus α·sqrt(x^T A_a^{-1} x). With α=0
     this reduces to greedy contextual recommendation; α>0 explores.
+
+    Note on alpha: with α=1.0 and SVD-init contexts, the exploration bonus
+    dominates the mean reward, biasing the bandit toward items that have no
+    training updates (their A_a stays at identity, giving the largest bonus).
+    Batch evaluation has no online interleaving to recover from this. We use
+    α=0.1 as the default, which keeps exploration without overwhelming the
+    learned θ_a.
 
     This is a strong RL/bandit baseline aligned with the proposed system's
     Thompson-Sampling-over-bandit formulation. We use n_components=32 by default.
@@ -803,7 +824,7 @@ def baselines_per_user(
             factors=int(ials_chosen["factors"]),
             iterations=int(ials_chosen["iterations"]),
             regularization=float(ials_chosen["regularization"]),
-            random_state=rng_seed, use_gpu=False,
+            random_state=rng_seed, use_gpu=_als_use_gpu(),
         )
         ials_model.fit(ials_M, show_progress=False)
     except Exception:
@@ -838,7 +859,7 @@ def baselines_per_user(
             iterations=int(bpr_chosen["iterations"]),
             learning_rate=float(bpr_chosen["learning_rate"]),
             regularization=float(bpr_chosen["regularization"]),
-            random_state=rng_seed, use_gpu=False,
+            random_state=rng_seed, use_gpu=_als_use_gpu(),
         )
         bpr_model.fit(bpr_M, show_progress=False)
     except Exception:
