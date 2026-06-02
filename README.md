@@ -1,3 +1,5 @@
+> ⚠️ **Disclaimer:** This repository contains only the **core** of the project. The remaining part is reserved for commercial use and is not included here.
+
 # Modeling Dynamic Preferences — Hybrid Recommender
 
 > [Versão em português](README.pt-BR.md)

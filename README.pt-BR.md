@@ -1,3 +1,5 @@
+> ⚠️ **Aviso:** Este repositório contém apenas o **núcleo** do projeto. A outra parte é reservada para uso comercial e não está incluída aqui.
+
 # Modelando Preferências Dinâmicas — Recomendador Híbrido
 
 > [English version](README.md)
